@@ -105,7 +105,7 @@ export const updateProductValidation = [
   body("sku")
     .optional()
     .trim()
-    .matches(/^[A-Za-z0-9]{3}-[A-Za-z0-9]{3}-[A-Za-z0-9]{3}-[A-Za-z0-9]{3}$/)
+    .matches(/^SKU-[A-Za-z0-9]{3}-[A-Za-z0-9]{3}-[A-Za-z0-9]{3}$/)
     .withMessage("SKU повинен бути у форматі XXX-XXX-XXX-XXX."),
 
   body("slug").optional().trim(),

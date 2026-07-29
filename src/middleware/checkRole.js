@@ -32,7 +32,6 @@ export const checkRole = (requiredRole) => {
 
       req.admin = user;
 
-      console.log(`Admin: ${user.username}, Role: ${user.role}`);
       next();
     } catch (error) {
       next(error);

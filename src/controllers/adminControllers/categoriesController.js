@@ -1,52 +1,12 @@
-import Categories from "../../models/Categories.js";
-import Product from "../../models/Products.js";
-import logger from "../../services/logger/logger.js";
+import Categories from "#models/Categories.js";
+import Product from "#models/Products.js";
+import logger from "#services/logger/logger.js";
 import { matchedData } from "express-validator";
-import fs from "fs";
-import path from "path";
-
-// -- getAdminLogs
-export const getAdminLogs = async (req, res, next) => {
-  try {
-    const logPath = path.resolve("logs", "admin-actions.log");
-
-    if (!fs.existsSync(logPath)) {
-      return res.status(200).json([]); // Возвращаем пустой массив, если логов нет
-    }
-
-    // Читаем файл и разбиваем на массив по строкам
-    const fileContent = fs.readFileSync(logPath, "utf-8");
-    const lines = fileContent
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean);
-
-    const formattedLogs = [];
-
-    // Группируем по 3 строки, так как у нас в логе: Действие, Админ, Товар
-    for (let i = 0; i < lines.length; i += 3) {
-      if (lines[i]) {
-        formattedLogs.push({
-          action: lines[i] || "",
-          admin: lines[i + 1] || "",
-          target: lines[i + 2] || "",
-        });
-      }
-    }
-
-    // Отдаем массив объектов (свежие логи будут вверху)
-    res.status(200).json(formattedLogs.reverse());
-  } catch (error) {
-    next(error);
-  }
-};
 
 // -- oneCategories
 export const oneCategories = async (req, res, next) => {
   try {
     const { slug } = req.params;
-    const { admin } = req;
-
     // Check if there are products associated with the category
     const product = await Categories.findOne({ slug });
     if (!product) {
@@ -55,12 +15,6 @@ export const oneCategories = async (req, res, next) => {
 
       return next(error);
     }
-
-    // Записываем понятный лог
-    logger.info(
-      `Действие: УДАЛЕНИЕ_ТОВАРА\nАдмин: ${admin.username} (ID: ${admin.id})\nТовар: ${product.slug} (ID: ${product.id})`,
-    );
-    console.log(`name: ${admin.username}, id: ${admin.id}`);
 
     res.status(200).send({ data: product });
   } catch (error) {
@@ -90,6 +44,7 @@ export const allCategories = async (req, res, next) => {
 export const createCategories = async (req, res, next) => {
   try {
     const { name, slug, status } = req.body;
+    const { admin } = req;
 
     const statusBoolean = status ? "inactive" : "active";
 
@@ -99,6 +54,11 @@ export const createCategories = async (req, res, next) => {
       slug,
       status: statusBoolean,
     });
+
+    // Log the action
+    logger.info(
+      `Подія: СОТВОРЕННЯ_КАТЕГОРІЇ\nАдміністратор: ${admin.username} (ID: ${admin.id})\nКатегорія: ${createCategory.slug} (ID: ${createCategory.id})`,
+    );
 
     res.sendStatus(200);
   } catch (error) {
@@ -122,6 +82,7 @@ export const updateCategories = async (req, res, next) => {
       error.status = 400;
       return next(error);
     }
+    const { admin } = req;
 
     const categorySlug = req.params.slug;
     const currentCategory = await Categories.findOne({ slug: categorySlug });
@@ -151,6 +112,16 @@ export const updateCategories = async (req, res, next) => {
       { $set: updates },
       { returnDocument: "after", runValidators: true },
     );
+    if (!updateData) {
+      const error = new Error("Категорію не знайдено.");
+      error.status = 404;
+      return next(error);
+    }
+
+    // Log the action
+    logger.info(
+      `Подія: ОНОВЛЕННЯ_КАТЕГОРІЇ\nАдміністратор: ${admin.username} (ID: ${admin.id})\nКатегорія: ${updateData.slug} (ID: ${updateData.id})`,
+    );
 
     res.sendStatus(200);
   } catch (error) {
@@ -169,6 +140,7 @@ export const deleteCategories = async (req, res, next) => {
       return next(error);
     }
     const categorySlug = req.params.slug;
+    const { admin } = req;
 
     // Delete category
     const deletedCategory = await Categories.findOneAndUpdate(
@@ -200,12 +172,20 @@ export const deleteCategories = async (req, res, next) => {
           },
         },
       );
+      // Log the action
+      logger.info(
+        `Подія: ВИДАЛЕННЯ_КАТЕГОРІЇ(з видаленням продуктів)\nАдміністратор: ${admin.username} (ID: ${admin.id})\nКатегорія: ${deletedCategory.slug} (ID: ${deletedCategory.id})`,
+      );
     } else {
       await Product.updateMany(
         { categorySlug: categorySlug },
         {
           $set: { status: "inactive", categorySlug: null },
         },
+      );
+      // Log the action
+      logger.info(
+        `Подія: ВИДАЛЕННЯ_КАТЕГОРІЇ(без видалення продуктів)\nАдміністратор: ${admin.username} (ID: ${admin.id})\nКатегорія: ${deletedCategory.slug} (ID: ${deletedCategory.id})`,
       );
     }
 
@@ -229,6 +209,7 @@ export const restoreCategories = async (req, res, next) => {
     // Determine the status string based on the boolean value
     const statusString = status ? "active" : "inactive";
     const { slug } = req.params;
+    const { admin } = req;
 
     // Restore the category
     const restoredCategory = await Categories.findOneAndUpdate(
@@ -242,6 +223,11 @@ export const restoreCategories = async (req, res, next) => {
       error.status = 400;
       return next(error);
     }
+
+    // Log the action
+    logger.info(
+      `Подія: ВІДНОВЛЕННЯ_КАТЕГОРІЇ(без видалення продуктів)\nАдміністратор: ${admin.username} (ID: ${admin.id})\nКатегорія: ${restoredCategory.slug} (ID: ${restoredCategory.id})`,
+    );
 
     res.sendStatus(200);
   } catch (error) {

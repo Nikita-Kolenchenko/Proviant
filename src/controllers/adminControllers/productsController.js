@@ -1,5 +1,6 @@
-import Categories from "../../models/Categories.js";
-import Product from "../../models/Products.js";
+import Categories from "#models/Categories.js";
+import Product from "#models/Products.js";
+import logger from "#services/logger/logger.js";
 import { matchedData } from "express-validator";
 
 // -- oneProducts
@@ -34,9 +35,7 @@ export const allProducts = async (req, res, next) => {
   try {
     const Products = await Product.find();
     if (Products.length === 0) {
-      const error = new Error("Продукти не знайдені.");
-      error.status = 404;
-      return next(error);
+      return res.status(200).json({ data: [] });
     }
 
     res.status(200).send({
@@ -66,6 +65,7 @@ export const createProducts = async (req, res, next) => {
 
     // Check status
     const statusBoolean = status ? "inactive" : "active";
+    const { admin } = req;
 
     // Check if category exists
     const categoryExists = await Categories.findOne({ slug: categorySlug });
@@ -79,7 +79,7 @@ export const createProducts = async (req, res, next) => {
     }
 
     // Create new product
-    const createCategory = await Product.create({
+    const createProduct = await Product.create({
       name,
       price,
       purchasePrice,
@@ -91,6 +91,11 @@ export const createProducts = async (req, res, next) => {
       categorySlug,
       status: statusBoolean,
     });
+
+    // Log the action
+    logger.info(
+      `Подія: СТВОРЕННЯ_ТОВАРА\nАдміністратор: ${admin.username} (ID: ${admin.id})\nТовар: ${createProduct.slug} (ID: ${createProduct.id})`,
+    );
 
     res.sendStatus(200);
   } catch (error) {
@@ -118,6 +123,7 @@ export const updateProducts = async (req, res, next) => {
     }
 
     const productSlug = req.params.slug;
+    const { admin } = req;
 
     const currentProduct = await Product.findOne({ slug: productSlug });
     if (!currentProduct) {
@@ -144,6 +150,11 @@ export const updateProducts = async (req, res, next) => {
       { returnDocument: "after", runValidators: true },
     );
 
+    // Log the action
+    logger.info(
+      `Подія: ОНОВЛЕННЯ_ТОВАРА\nАдміністратор: ${admin.username} (ID: ${admin.id})\nТовар: ${currentProduct.slug} (ID: ${currentProduct.id})`,
+    );
+
     res.sendStatus(200);
   } catch (error) {
     console.error(error);
@@ -161,6 +172,7 @@ export const deleteProducts = async (req, res, next) => {
 
       return next(error);
     }
+    const { admin } = req;
 
     const deletedProduct = await Product.findOneAndUpdate(
       { slug, status: { $ne: "deleted" } },
@@ -178,6 +190,11 @@ export const deleteProducts = async (req, res, next) => {
 
       return next(error);
     }
+
+    // Log the action
+    logger.info(
+      `Подія: ВИДАЛЕННЯ_ТОВАРА\nАдміністратор: ${admin.username} (ID: ${admin.id})\nТовар: ${deletedProduct.slug} (ID: ${deletedProduct.id})`,
+    );
 
     res.sendStatus(200);
   } catch (error) {
@@ -197,6 +214,7 @@ export const restoreProducts = async (req, res, next) => {
     }
 
     const statusString = status ? "active" : "inactive";
+    const { admin } = req;
 
     const { slug } = req.params;
     const restoredProduct = await Product.findOneAndUpdate(
@@ -212,6 +230,11 @@ export const restoreProducts = async (req, res, next) => {
       error.status = 400;
       return next(error);
     }
+
+    // Log the action
+    logger.info(
+      `Подія: ВІДНОВЛЕННЯ_ТОВАРА\nАдміністратор: ${admin.username} (ID: ${admin.id})\nТовар: ${restoredProduct.slug} (ID: ${restoredProduct.id})`,
+    );
 
     res.sendStatus(200);
   } catch (error) {

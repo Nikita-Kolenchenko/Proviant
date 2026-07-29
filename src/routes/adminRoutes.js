@@ -1,12 +1,18 @@
 import express from "express";
-import { apiLimiter } from "../middleware/rateLimiter/adminRateLimiter.js";
+
+// Middleware
+import { adminRateLimiter } from "../middleware/rateLimiter/adminRateLimiter.js";
 import { checkRole } from "../middleware/checkRole.js";
+
+// Validators
 import {
   validateCategory,
   updateCategoryValidation,
   validateProduct,
   updateProductValidation,
 } from "../middleware/validators/adminValidators.js";
+
+// Controllers
 import {
   oneCategories,
   allCategories,
@@ -14,8 +20,8 @@ import {
   updateCategories,
   deleteCategories,
   restoreCategories,
-  getAdminLogs,
 } from "../controllers/adminControllers/categoriesController.js";
+
 import {
   oneProducts,
   allProducts,
@@ -25,41 +31,31 @@ import {
   restoreProducts,
 } from "../controllers/adminControllers/productsController.js";
 
+import { getAdminLogs } from "../controllers/adminControllers/logsController.js";
+
 const router = express.Router();
 
-router.use(apiLimiter);
+// middleware
+router.use(adminRateLimiter);
+router.use(checkRole("admin"));
 
-router.get("/admin-logs", checkRole("admin"), getAdminLogs);
+// -- Categories --
+router.get("/categories", allCategories);
+router.get("/categories/:slug", oneCategories);
+router.post("/categories", validateCategory, createCategories);
+router.patch("/categories/:slug", updateCategoryValidation, updateCategories);
+router.delete("/categories/:slug", deleteCategories);
+router.post("/categories/:slug/restore", restoreCategories);
 
-// Categories
-router.get("/categories/:slug", checkRole("admin"), oneCategories);
-router.get("/categories", checkRole("admin"), allCategories);
-router.post(
-  "/categories",
-  checkRole("admin"),
-  validateCategory,
-  createCategories,
-);
-router.patch(
-  "/categories/:slug",
-  checkRole("admin"),
-  updateCategoryValidation,
-  updateCategories,
-);
-router.delete("/categories/:slug", checkRole("admin"), deleteCategories);
-router.post("/categories/:slug/restore", checkRole("admin"), restoreCategories);
+// -- Products --
+router.get("/products", allProducts);
+router.get("/products/:slug", oneProducts);
+router.post("/products", validateProduct, createProducts);
+router.patch("/products/:slug", updateProductValidation, updateProducts);
+router.delete("/products/:slug", deleteProducts);
+router.post("/products/:slug/restore", restoreProducts);
 
-// Products
-router.get("/products/:slug", checkRole("admin"), oneProducts);
-router.get("/products", checkRole("admin"), allProducts);
-router.post("/products", checkRole("admin"), validateProduct, createProducts);
-router.patch(
-  "/products/:slug",
-  checkRole("admin"),
-  updateProductValidation,
-  updateProducts,
-);
-router.delete("/products/:slug", checkRole("admin"), deleteProducts);
-router.post("/products/:slug/restore", checkRole("admin"), restoreProducts);
+// -- Logs --
+router.get("/logs", getAdminLogs);
 
 export default router;
