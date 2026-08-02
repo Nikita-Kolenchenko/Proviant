@@ -93,7 +93,7 @@ export const login = async (req, res, next) => {
       console.error("Email send error:", err),
     );
 
-    res.sendStatus(200);
+    res.sendStatus(204);
   } catch (error) {
     console.error("Login error: ", error);
     next(error);

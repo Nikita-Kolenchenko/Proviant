@@ -7,7 +7,7 @@ export const refresh = async (req, res, next) => {
   try {
     const { refreshToken } = req.cookies;
     if (!refreshToken) {
-      const error = new Error("Помилка1.");
+      const error = new Error("Помилка.");
       error.status = 401;
 
       return next(error);
@@ -20,7 +20,7 @@ export const refresh = async (req, res, next) => {
     // Find refresh token in the database
     const refreshFromDB = await Refresh.findOne({ userId, refreshToken });
     if (!refreshFromDB) {
-      const error = new Error("Помилка2.");
+      const error = new Error("Помилка.");
       error.status = 401;
 
       return next(error);
@@ -29,7 +29,7 @@ export const refresh = async (req, res, next) => {
     // Find user by ID
     const user = await User.findById(userId);
     if (!user) {
-      const error = new Error("Помилка3.");
+      const error = new Error("Помилка.");
       error.status = 404;
 
       return next(error);
@@ -79,7 +79,7 @@ export const refresh = async (req, res, next) => {
       { returnDocument: "after", runValidators: true },
     );
 
-    res.sendStatus(200);
+    res.sendStatus(204);
   } catch (error) {
     console.error("Refresh error: ", error);
     next(error);

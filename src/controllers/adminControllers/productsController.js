@@ -97,7 +97,7 @@ export const createProducts = async (req, res, next) => {
       `Подія: СТВОРЕННЯ_ТОВАРА\nАдміністратор: ${admin.username} (ID: ${admin.id})\nТовар: ${createProduct.slug} (ID: ${createProduct.id})`,
     );
 
-    res.sendStatus(200);
+    res.sendStatus(201);
   } catch (error) {
     // Handle duplicate key error (e.g., unique fields)
     if (error.code === 11000) {
@@ -155,7 +155,7 @@ export const updateProducts = async (req, res, next) => {
       `Подія: ОНОВЛЕННЯ_ТОВАРА\nАдміністратор: ${admin.username} (ID: ${admin.id})\nТовар: ${currentProduct.slug} (ID: ${currentProduct.id})`,
     );
 
-    res.sendStatus(200);
+    res.sendStatus(204);
   } catch (error) {
     console.error(error);
     next(error);
@@ -196,7 +196,7 @@ export const deleteProducts = async (req, res, next) => {
       `Подія: ВИДАЛЕННЯ_ТОВАРА\nАдміністратор: ${admin.username} (ID: ${admin.id})\nТовар: ${deletedProduct.slug} (ID: ${deletedProduct.id})`,
     );
 
-    res.sendStatus(200);
+    res.sendStatus(204);
   } catch (error) {
     console.error(error);
     next(error);
@@ -236,7 +236,7 @@ export const restoreProducts = async (req, res, next) => {
       `Подія: ВІДНОВЛЕННЯ_ТОВАРА\nАдміністратор: ${admin.username} (ID: ${admin.id})\nТовар: ${restoredProduct.slug} (ID: ${restoredProduct.id})`,
     );
 
-    res.sendStatus(200);
+    res.sendStatus(204);
   } catch (error) {
     console.error(error);
     next(error);

@@ -27,9 +27,7 @@ export const allCategories = async (req, res, next) => {
   try {
     const categories = await Categories.find();
     if (categories.length === 0) {
-      const error = new Error("Категорії не знайдені.");
-      error.status = 404;
-      return next(error);
+      return res.status(200).json({ data: [] });
     }
 
     res.status(200).send({
@@ -60,7 +58,7 @@ export const createCategories = async (req, res, next) => {
       `Подія: СОТВОРЕННЯ_КАТЕГОРІЇ\nАдміністратор: ${admin.username} (ID: ${admin.id})\nКатегорія: ${createCategory.slug} (ID: ${createCategory.id})`,
     );
 
-    res.sendStatus(200);
+    res.sendStatus(201);
   } catch (error) {
     if (error.code === 11000) {
       const customError = new Error(`Значення для поля вже існує.`);
@@ -123,7 +121,7 @@ export const updateCategories = async (req, res, next) => {
       `Подія: ОНОВЛЕННЯ_КАТЕГОРІЇ\nАдміністратор: ${admin.username} (ID: ${admin.id})\nКатегорія: ${updateData.slug} (ID: ${updateData.id})`,
     );
 
-    res.sendStatus(200);
+    res.sendStatus(204);
   } catch (error) {
     console.error(error);
     next(error);
@@ -189,7 +187,7 @@ export const deleteCategories = async (req, res, next) => {
       );
     }
 
-    res.sendStatus(200);
+    res.sendStatus(204);
   } catch (error) {
     console.error(error);
     next(error);
@@ -229,7 +227,7 @@ export const restoreCategories = async (req, res, next) => {
       `Подія: ВІДНОВЛЕННЯ_КАТЕГОРІЇ(без видалення продуктів)\nАдміністратор: ${admin.username} (ID: ${admin.id})\nКатегорія: ${restoredCategory.slug} (ID: ${restoredCategory.id})`,
     );
 
-    res.sendStatus(200);
+    res.sendStatus(204);
   } catch (error) {
     console.error(error);
     next(error);

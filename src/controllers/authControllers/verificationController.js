@@ -100,7 +100,7 @@ export const verify = async (req, res, next) => {
       refreshToken,
     });
 
-    res.sendStatus(201);
+    res.sendStatus(204);
   } catch (error) {
     console.error("Verification error: ", error);
     next(error);
