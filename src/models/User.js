@@ -9,10 +9,10 @@ const userSchema = new mongoose.Schema(
 
     isActivated: { type: Boolean, default: false },
 
-    activationCode: { type: String, default: null },
-    verificationAttempts: { type: Number, default: 0 },
+    // activationCode: { type: String, default: null },
+    // verificationAttempts: { type: Number, default: 0 },
 
-    expiredAt: { type: Date, default: Date.now, expires: "4m" },
+    expiredAt: { type: Date, default: null, expires: "4m" },
   },
   { timestamps: true },
 );

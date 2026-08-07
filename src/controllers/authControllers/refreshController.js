@@ -5,32 +5,23 @@ import Refresh from "../../models/Refresh.js";
 
 export const refresh = async (req, res, next) => {
   try {
+    const userId = req.user.id;
     const { refreshToken } = req.cookies;
-    if (!refreshToken) {
-      const error = new Error("Помилка.");
-      error.status = 401;
-
-      return next(error);
-    }
-
-    // Verify the refresh token
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-    const userId = decoded.id;
-
-    // Find refresh token in the database
-    const refreshFromDB = await Refresh.findOne({ userId, refreshToken });
-    if (!refreshFromDB) {
-      const error = new Error("Помилка.");
-      error.status = 401;
-
-      return next(error);
-    }
 
     // Find user by ID
     const user = await User.findById(userId);
     if (!user) {
       const error = new Error("Помилка.");
-      error.status = 404;
+      error.status = 400;
+
+      return next(error);
+    }
+
+    // Find refresh token in the database
+    const refreshFromDB = await Refresh.findOne({ userId, refreshToken });
+    if (!refreshFromDB) {
+      const error = new Error("Помилка.");
+      error.status = 400;
 
       return next(error);
     }

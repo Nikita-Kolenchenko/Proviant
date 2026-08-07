@@ -1,31 +1,12 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import User from "../../models/User.js";
-import { sendVerificationEmail } from "../../services/email/verificationService.js";
+import PendingChange from "../../models/PendingChange.js";
+import { sendCode } from "../../services/email/service.js";
 
 export const register = async (req, res, next) => {
   try {
-    const allowedFields = ["username", "email", "password"];
-    const incomingFields = Object.keys(req.body);
-
-    // Проверяем, есть ли среди пришедших полей те, которых нет в списке разрешенных
-    const hasExtraFields = incomingFields.some(
-      (field) => !allowedFields.includes(field),
-    );
-
-    if (hasExtraFields) {
-      const error = new Error("Недопустимые поля в запросе.");
-      error.status = 400;
-      return next(error);
-    }
-
     const { username, email, password } = req.body;
-    if (!username || !email || !password) {
-      const error = new Error("Заповніть усі поля.");
-      error.status = 400;
-
-      return next(error);
-    }
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -34,7 +15,7 @@ export const register = async (req, res, next) => {
         await User.deleteOne({ _id: existingUser._id });
       } else {
         const error = new Error(
-          "Користувач з такою електронною поштою вже існує.",
+          "Користувач з такою електронною поштою вже існує, можливо ви вже зареєстровані.",
         );
         error.status = 400;
 
@@ -42,20 +23,23 @@ export const register = async (req, res, next) => {
       }
     }
 
-    // Hash the password
-    const hashedPassword = await bcrypt.hash(password, 10);
     // Generate a 6-digit code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    // Hash the code
-    const hashedCode = await bcrypt.hash(code, 10);
 
     // Create the user in the database. He is not activated yet and will be deleted after 4 minutes if he doesn't activate himself.
-    const newUser = new User({
+    const newUser = await User.create({
       username,
       email,
-      password: hashedPassword,
-      activationCode: hashedCode,
-      isActivated: false,
+      password: await bcrypt.hash(password, 10),
+      expiredAt: new Date(),
+    });
+    // Create a new pending change for the user
+    const newPendingChange = await PendingChange.create({
+      userId: newUser._id,
+      code: await bcrypt.hash(code, 10),
+      type: "REGISTRATION",
+      payload: null,
+      createdAt: new Date(),
     });
 
     // Destructuring assignment to exclude password from the user object
@@ -63,13 +47,26 @@ export const register = async (req, res, next) => {
       ? newUser.toObject()
       : newUser;
 
-    // Call the email sending function to send the code to the user's email
-    sendVerificationEmail(userWithoutPassword.email, code).catch((err) =>
-      console.error("Email send error:", err),
+    // Create JWT token and set cookie
+    const registrationToken = jwt.sign(
+      {
+        id: userWithoutPassword._id,
+      },
+      process.env.JWT_SPARE,
+      { expiresIn: "5m" },
     );
 
-    // Save the user to the database
-    await newUser.save();
+    res.cookie("registrationToken", registrationToken, {
+      httpOnly: true, // XSS
+      secure: false, // СТАВЬ FALSE ДЛЯ ЛОКАЛКИ! Если true, кука работает ТОЛЬКО по https
+      //sameSite: "lax", // Для локальной разработки между разными портами
+      maxAge: 10 * 60 * 1000,
+    });
+
+    // Send code on email
+    sendCode(userWithoutPassword.email, code).catch((err) =>
+      console.error("Email send error:", err),
+    );
 
     res.sendStatus(201);
   } catch (error) {

@@ -1,47 +1,52 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import User from "../../models/User.js";
+import PendingChange from "../../models/PendingChange.js";
 import Refresh from "../../models/Refresh.js";
 
 export const verify = async (req, res, next) => {
   try {
-    const { email, code } = req.body;
+    const { code } = req.body;
+    const userId = req.user.id;
 
     // Find user
-    const user = await User.findOne({ email });
-    if (!user) {
-      const error = new Error("Термін дії коду (4 хв) закінчився.");
+    const pendingChange = await PendingChange.findOne({ userId });
+    if (!pendingChange) {
+      const error = new Error("Термін дії коду закінчився.");
       error.status = 400;
       throw error;
     }
 
-    if (user.isActivated) {
+    const user = await User.findOne({ _id: userId });
+    if (!user) {
       const error = new Error("Помилка.");
       error.status = 400;
       throw error;
     }
 
     // Does the code match?
-    if (!(await bcrypt.compare(code, user.activationCode))) {
+    if (!(await bcrypt.compare(code, pendingChange.code))) {
       const error = new Error("Невірний код підтвердження.");
       error.status = 400;
       throw error;
     }
 
-    // Activate the user
-    user.isActivated = true;
-    user.activationCode = null;
-
-    // Delete expiredAt
+    // Chenge user status to activated and remove expiredAt field, then delete pending change
     user.expiredAt = undefined;
-
-    // Save the user
+    user.isActivated = true;
     await user.save();
+    await PendingChange.deleteOne({ _id: pendingChange._id });
 
     // Destructuring assignment
     const { password: _, ...userWithoutPassword } = user.toObject
       ? user.toObject()
       : user;
+
+    res.clearCookie("registrationToken", {
+      httpOnly: true,
+      secure: false,
+      sameSite: "strict",
+    });
 
     // Create JWT token
     const accessToken = jwt.sign(

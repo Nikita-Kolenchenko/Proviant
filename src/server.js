@@ -7,6 +7,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { connectDB } from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import { errorMiddleware } from "./middleware/errorMiddleware.js";
 
@@ -34,6 +35,7 @@ app.use((req, res, next) => {
 
 // ROUTS
 app.use("/api/auth", authRoutes);
+app.use("/api/user", userRoutes);
 app.use("/api/admin", adminRoutes);
 
 // ERRORMIDDLEWARE

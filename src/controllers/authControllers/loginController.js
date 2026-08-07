@@ -2,7 +2,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import User from "../../models/User.js";
 import Refresh from "../../models/Refresh.js";
-import { sendLoginEmail } from "../../services/email/loginService.js";
+import { sendMessage } from "../../services/email/service.js";
 
 export const login = async (req, res, next) => {
   try {
@@ -89,8 +89,8 @@ export const login = async (req, res, next) => {
     });
 
     // call the email sending function to send the login notification to the user's email
-    sendLoginEmail(user.email).catch((err) =>
-      console.error("Email send error:", err),
+    sendMessage(user.email, "Ми зафіксували новий вхід у ваш профіль.").catch(
+      (err) => console.error("Email send error:", err),
     );
 
     res.sendStatus(204);
