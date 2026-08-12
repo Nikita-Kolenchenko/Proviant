@@ -5,16 +5,7 @@ import RefreshToken from "../../models/Refresh.js";
 
 export const exitProfile = async (req, res, next) => {
   try {
-    const { refreshToken } = req.cookies;
-    const userId = req.user.id;
-    const user = await User.findById(userId);
-
-    if (!refreshToken || !user) {
-      const error = new Error("Помилка.");
-      error.status = 400;
-
-      return next(error);
-    }
+    const user = req.foundUser;
 
     // Delete all tokens for cookie
     const options = { httpOnly: true, secure: false, sameSite: "strict" };
@@ -24,7 +15,7 @@ export const exitProfile = async (req, res, next) => {
     // Delete refresh token
     await RefreshToken.deleteOne({
       userId: user._id,
-      refreshToken,
+      refreshToken: req.cookies.refreshToken,
     });
 
     res.status(200).json({ message: "Ви вийшли з акаунту." });

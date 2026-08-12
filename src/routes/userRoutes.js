@@ -2,8 +2,12 @@ import express from "express";
 import {
   changeLimiter,
   verificationCodeLimiter,
-  ChangeForgotPassword,
+  changeForgotPasswordLimiter,
 } from "../middleware/rateLimiter/RateLimiter.js";
+import {
+  checkUserExists,
+  checkPendingExists,
+} from "../middleware/checkUserExists.js";
 import { authenticateToken } from "../middleware/authMiddleware.js";
 import { getProfile } from "../controllers/userControllers/getProfile.js";
 import { changeUsername } from "../controllers/userControllers/changeUsername.js";
@@ -29,12 +33,19 @@ import {
 const router = express.Router();
 
 // Get profile
-router.get("/profile", authenticateToken("accessToken"), getProfile);
+router.get(
+  "/profile",
+  changeLimiter,
+  authenticateToken("accessToken"),
+  checkUserExists,
+  getProfile,
+);
 // Exit profile
 router.post(
   "/exit-profile",
   changeLimiter,
   authenticateToken("accessToken"),
+  checkUserExists,
   exitProfile,
 );
 // Change username
@@ -42,6 +53,7 @@ router.post(
   "/change-username",
   changeLimiter,
   authenticateToken("accessToken"),
+  checkUserExists,
   validateChangeUsername,
   changeUsername,
 );
@@ -50,6 +62,7 @@ router.post(
   "/change-password",
   changeLimiter,
   authenticateToken("accessToken"),
+  checkUserExists,
   validateChangePassword,
   changePassword,
 );
@@ -58,6 +71,7 @@ router.post(
   "/change-email",
   changeLimiter,
   authenticateToken("accessToken"),
+  checkUserExists,
   validateChangeEmail,
   changeEmail,
 );
@@ -65,6 +79,7 @@ router.post(
   "/verify-change-email",
   verificationCodeLimiter,
   authenticateToken("accessToken"),
+  checkPendingExists("EMAIL_CHANGE"),
   validateVerificationNewEmail,
   verifyChangeEmail,
 );
@@ -72,7 +87,7 @@ router.post(
 // It is not necessary to have a access token (changeForgotPassword)
 router.post(
   "/change-forgot-password",
-  ChangeForgotPassword,
+  changeForgotPasswordLimiter,
   validateChangeForgotPassword,
   changeForgotPassword,
 );
@@ -80,6 +95,7 @@ router.post(
   "/verify-change-forgot-password",
   verificationCodeLimiter,
   authenticateToken("changeForgotPasswordToken"),
+  checkPendingExists("PASSWORD_RESET"),
   validateVerificationNewPassword,
   changeVerificationNewPassword,
 );

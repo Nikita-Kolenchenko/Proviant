@@ -46,3 +46,5 @@ server.listen(PORT, async () => {
   console.log("Server is running🟢");
   await connectDB();
 });
+
+//export default server;

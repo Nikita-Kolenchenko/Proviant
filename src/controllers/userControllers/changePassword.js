@@ -1,59 +1,53 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 import User from "../../models/User.js";
-import PendingChange from "../../models/PendingChange.js";
 import RefreshToken from "../../models/Refresh.js";
+import PendingChange from "../../models/PendingChange.js";
+import { createError } from "../../middleware/errorMiddleware.js";
 import { sendMessage, sendCode } from "../../services/email/service.js";
 
 export const changePassword = async (req, res, next) => {
+  // Start session
+  const session = mongoose.startSession();
+
   try {
     const { oldPassword, newPassword } = req.body;
-    const { refreshToken } = req.cookies;
-    const userId = req.user.id;
+    const user = req.foundUser;
 
-    if (!refreshToken) {
-      const error = new Error("Помилка.");
-      error.status = 400;
-
-      return next(error);
-    }
-
+    // Compare old and new password
     if (oldPassword === newPassword) {
-      const error = new Error("Новий пароль не може збігатися зі старим.");
-      error.status = 400;
-
-      return next(error);
-    }
-
-    // Find user by ID
-    const user = await User.findById(userId);
-    if (!user) {
-      const error = new Error("Помилка.");
-      error.status = 400;
-
-      return next(error);
+      return next(
+        createError(400, "Новий пароль не може збігатися зі старим."),
+      );
     }
 
     // Check password
-    const checkPassword = await bcrypt.compare(oldPassword, user.password);
-    if (!checkPassword) {
-      const error = new Error("Невірний пароль.");
-      error.status = 400;
-
-      return next(error);
+    if (!(await bcrypt.compare(oldPassword, user.password))) {
+      return next(createError(400, "Невірний пароль."));
     }
 
-    // Delete all refresh tokens for the db and create a new one
-    await RefreshToken.deleteMany({
-      userId: user._id,
-      refreshToken: { $ne: refreshToken },
+    await await session.withTransaction(async () => {
+      // Delete all refresh tokens from db except for the password
+      await RefreshToken.deleteMany(
+        {
+          userId: user._id,
+          refreshToken: { $ne: refreshToken },
+        },
+        { session },
+      );
+
+      // Update password
+      await User.findByIdAndUpdate(
+        userId,
+        {
+          password: await bcrypt.hash(newPassword, 10),
+        },
+        { session },
+      );
     });
 
-    // Update password
-    user.password = await bcrypt.hash(newPassword, 10);
-    await user.save();
-
-    // call the email sending function to send the login notification to the user's email
+    // Send security message
     sendMessage(user.email, "Ваш пароль успішно змінено.").catch((err) =>
       console.error("Email send error:", err),
     );
@@ -61,6 +55,8 @@ export const changePassword = async (req, res, next) => {
     res.status(200).json({ message: "Пароль успішно змінено." });
   } catch (error) {
     next(error);
+  } finally {
+    await session.endSession();
   }
 };
 
@@ -96,15 +92,13 @@ export const changeForgotPassword = async (req, res, next) => {
       process.env.JWT_CHANGE_FORGOT_PASSWORD,
       { expiresIn: "5m" },
     );
-
     res.cookie("changeForgotPasswordToken", ChangeForgotPasswordToken, {
-      httpOnly: true, // XSS
-      secure: false, // СТАВЬ FALSE ДЛЯ ЛОКАЛКИ! Если true, кука работает ТОЛЬКО по https
-      //sameSite: "lax", // Для локальной разработки между разными портами
-      maxAge: 10 * 60 * 1000,
+      httpOnly: true,
+      secure: false,
+      maxAge: 5 * 60 * 1000,
     });
 
-    // Сall the email sending function to send the login notification to the user's email
+    // Send code to email
     sendCode(user.email, code).catch((err) =>
       console.error("Email send error:", err),
     );
@@ -119,52 +113,42 @@ export const changeForgotPassword = async (req, res, next) => {
 };
 
 export const changeVerificationNewPassword = async (req, res, next) => {
+  // Start session
+  const session = await mongoose.startSession();
+
   try {
     const { code } = req.body;
-    const userId = req.user.id;
-
-    // Find user by EMAIL
-    const user = await User.findById(userId);
-    if (!user) {
-      const error = new Error("Помилка.");
-      error.status = 400;
-      return next(error);
-    }
-    const pendingChange = await PendingChange.findOne({
-      userId,
-      type: "PASSWORD_RESET",
-    });
-    if (!pendingChange) {
-      const error = new Error("Час дії коду минув.");
-      error.status = 400;
-      return next(error);
-    }
+    const user = req.foundUser;
+    const pendingChange = req.foundPendingChange;
 
     // Check code
     if (!(await bcrypt.compare(code, pendingChange.code))) {
-      const error = new Error("Невірний код підтвердження.");
-      error.status = 400;
-      return next(error);
+      return next(createError(400, "Невірний код підтвердження."));
     }
 
-    // Delete all refresh tokens for the db and create a new one
-    await RefreshToken.deleteMany({
-      userId: user._id,
-    });
-
-    // Delete changeForgotPasswordToken and pending change
+    // Delete changeForgotPasswordToken
     res.clearCookie("changeForgotPasswordToken", {
       httpOnly: true,
       secure: false,
       sameSite: "strict",
     });
-    await PendingChange.deleteOne({ _id: pendingChange._id });
 
-    // Update password
-    user.password = pendingChange.payload;
-    await user.save();
+    await session.withTransaction(async () => {
+      // Delete pending change
+      await PendingChange.deleteOne({ _id: pendingChange._id });
 
-    // call the email sending function to send the login notification to the user's email
+      // Delete all refresh tokens for the db and create a new one
+      await RefreshToken.deleteMany({
+        userId: user._id,
+      });
+
+      // Update password
+      await User.findByIdAndUpdate(user._id, {
+        password: pendingChange.payload,
+      });
+    });
+
+    // Send message
     sendMessage(user.email, "Ваш пароль успішно змінено.").catch((err) =>
       console.error("Email send error:", err),
     );
@@ -174,5 +158,7 @@ export const changeVerificationNewPassword = async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  } finally {
+    await session.endSession();
   }
 };

@@ -1,113 +1,94 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 import User from "../../models/User.js";
-import PendingChange from "../../models/PendingChange.js";
 import Refresh from "../../models/Refresh.js";
+import PendingChange from "../../models/PendingChange.js";
+import { createError } from "../../middleware/errorMiddleware.js";
 
 export const verify = async (req, res, next) => {
+  // Start session
+  const session = await mongoose.startSession();
+
   try {
     const { code } = req.body;
-    const userId = req.user.id;
-
-    // Find user
-    const pendingChange = await PendingChange.findOne({ userId });
-    if (!pendingChange) {
-      const error = new Error("Термін дії коду закінчився.");
-      error.status = 400;
-      throw error;
-    }
-
-    const user = await User.findOne({ _id: userId });
-    if (!user) {
-      const error = new Error("Помилка.");
-      error.status = 400;
-      throw error;
-    }
+    const user = req.foundUser;
+    const pendingChange = req.foundPendingChange;
 
     // Does the code match?
     if (!(await bcrypt.compare(code, pendingChange.code))) {
-      const error = new Error("Невірний код підтвердження.");
-      error.status = 400;
-      throw error;
+      return next(createError(400, "Невірний код підтвердження."));
     }
 
-    // Chenge user status to activated and remove expiredAt field, then delete pending change
-    user.expiredAt = undefined;
-    user.isActivated = true;
-    await user.save();
-    await PendingChange.deleteOne({ _id: pendingChange._id });
+    // Create refresh token
+    let refreshToken = jwt.sign(
+      { id: user._id },
+      process.env.JWT_REFRESH_SECRET,
+      { expiresIn: "30d" },
+    );
 
-    // Destructuring assignment
-    const { password: _, ...userWithoutPassword } = user.toObject
-      ? user.toObject()
-      : user;
+    await session.withTransaction(async () => {
+      // Delete pending change
+      await PendingChange.deleteOne({ _id: pendingChange._id }, { session });
+      // Changing user
+      await User.findByIdAndUpdate(
+        user._id,
+        {
+          $set: { isActivated: true },
+          $unset: { expiredAt: 1 },
+        },
+        { session },
+      );
 
+      // Create a new refresh token
+      const [newToken] = await Refresh.create(
+        [
+          {
+            userId: user._id,
+            refreshToken,
+          },
+        ],
+        { session },
+      );
+    });
+
+    // Delete registration token
     res.clearCookie("registrationToken", {
       httpOnly: true,
       secure: false,
       sameSite: "strict",
     });
 
-    // Create JWT token
+    // Create access token
     const accessToken = jwt.sign(
       {
-        id: userWithoutPassword._id,
-        username: userWithoutPassword.username,
-        role: userWithoutPassword.role,
+        id: user._id,
+        username: user.username,
+        role: user.role,
       },
       process.env.JWT_SECRET,
       { expiresIn: "10m" },
     );
 
-    const refreshToken = jwt.sign(
-      { id: userWithoutPassword._id },
-      process.env.JWT_REFRESH_SECRET,
-      { expiresIn: "30d" },
-    );
-
     // Set cookies
     res.cookie("accessToken", accessToken, {
-      httpOnly: true, // XSS
-      secure: false, // СТАВЬ FALSE ДЛЯ ЛОКАЛКИ! Если true, кука работает ТОЛЬКО по https
-      //sameSite: "lax", // Для локальной разработки между разными портами
+      httpOnly: true,
+      secure: false,
       maxAge: 10 * 60 * 1000,
     });
-
     res.cookie("refreshToken", refreshToken, {
-      httpOnly: true, // XSS
-      secure: false, // СТАВЬ FALSE ДЛЯ ЛОКАЛКИ! Если true, кука работает ТОЛЬКО по https
-      //sameSite: "lax", // Для локальной разработки между разными портами
+      httpOnly: true,
+      secure: false,
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
 
-    // Check how many refresh tokens the user has in the database
-    const tokenCount = await Refresh.countDocuments({
-      userId: userWithoutPassword._id,
-    });
-
-    // If the user has 4 or more refresh tokens, delete the oldest one
-    if (tokenCount >= 4) {
-      // Find the oldest token for the user (sorted by createdAt: 1 — from old to new)
-      const oldestToken = await Refresh.findOne({
-        userId: userWithoutPassword._id,
-      }).sort({
-        createdAt: 1,
-      });
-      if (oldestToken) {
-        // Delete the oldest token from the database
-        await Refresh.deleteOne({ _id: oldestToken._id });
-      }
-    }
-
-    // create a new refresh token entry in the database
-    const newToken = await Refresh.create({
-      userId: userWithoutPassword._id,
-      refreshToken,
-    });
-
-    res.sendStatus(204);
+    res
+      .status(200)
+      .json({ message: "Вітаємо, ви успішно підтвердили електронну адресу." });
   } catch (error) {
     console.error("Verification error: ", error);
     next(error);
+  } finally {
+    session.endSession();
   }
 };

@@ -75,7 +75,7 @@ export const refreshLimiter = rateLimit({
 // User
 export const changeLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
-  max: 10,
+  max: 20,
   standardHeaders: "draft-8",
   legacyHeaders: false,
   ipv6Subnet: 56,
@@ -87,7 +87,7 @@ export const changeLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-export const ChangeForgotPassword = rateLimit({
+export const changeForgotPasswordLimiter = rateLimit({
   windowMs: 1 * 60 * 60 * 1000,
   max: 2,
   standardHeaders: "draft-8",

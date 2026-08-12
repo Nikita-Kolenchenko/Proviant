@@ -1,76 +1,100 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import mongoose, { Error } from "mongoose";
 import User from "../../models/User.js";
 import PendingChange from "../../models/PendingChange.js";
 import { sendCode } from "../../services/email/service.js";
+import { createError } from "../../middleware/errorMiddleware.js";
 
 export const register = async (req, res, next) => {
+  // Start session
+  const session = await mongoose.startSession();
+
   try {
     const { username, email, password } = req.body;
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      if (existingUser.isActivated === false) {
-        await User.deleteOne({ _id: existingUser._id });
-      } else {
-        const error = new Error(
-          "Користувач з такою електронною поштою вже існує, можливо ви вже зареєстровані.",
+    // User and code
+    let user;
+    let code = Math.floor(100000 + Math.random() * 900000).toString();
+
+    await session.withTransaction(async () => {
+      // Delete user and pending change already exists
+      const userFindPandingChange = await User.findOneAndDelete(
+        { email, isActivated: false },
+        { session },
+      );
+      if (userFindPandingChange) {
+        await PendingChange.deleteMany(
+          { userId: userFindPandingChange._id, type: "REGISTRATION" },
+          { session },
         );
-        error.status = 400;
-
-        return next(error);
       }
-    }
 
-    // Generate a 6-digit code
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+      // Hash
+      const [hashedPassword, hashedCode] = await Promise.all([
+        bcrypt.hash(password, 10),
+        bcrypt.hash(code, 10),
+      ]);
 
-    // Create the user in the database. He is not activated yet and will be deleted after 4 minutes if he doesn't activate himself.
-    const newUser = await User.create({
-      username,
-      email,
-      password: await bcrypt.hash(password, 10),
-      expiredAt: new Date(),
+      // Create new user
+      const [newUser] = await User.create(
+        [
+          {
+            username,
+            email,
+            password: hashedPassword,
+            expiredAt: new Date(),
+          },
+        ],
+        { session },
+      );
+      user = newUser; // User
+      // Create new pending change
+      const [newPendingChange] = await PendingChange.create(
+        [
+          {
+            userId: newUser._id,
+            code: hashedCode,
+            type: "REGISTRATION",
+            payload: null,
+            createdAt: new Date(),
+          },
+        ],
+        { session },
+      );
     });
-    // Create a new pending change for the user
-    const newPendingChange = await PendingChange.create({
-      userId: newUser._id,
-      code: await bcrypt.hash(code, 10),
-      type: "REGISTRATION",
-      payload: null,
-      createdAt: new Date(),
-    });
 
-    // Destructuring assignment to exclude password from the user object
-    const { password: _, ...userWithoutPassword } = newUser.toObject
-      ? newUser.toObject()
-      : newUser;
-
-    // Create JWT token and set cookie
+    // Create registration token and push in cookie
     const registrationToken = jwt.sign(
       {
-        id: userWithoutPassword._id,
+        id: user._id,
       },
-      process.env.JWT_SPARE,
+      process.env.JWT_REGISTRATION,
       { expiresIn: "5m" },
     );
 
     res.cookie("registrationToken", registrationToken, {
-      httpOnly: true, // XSS
-      secure: false, // СТАВЬ FALSE ДЛЯ ЛОКАЛКИ! Если true, кука работает ТОЛЬКО по https
-      //sameSite: "lax", // Для локальной разработки между разными портами
-      maxAge: 10 * 60 * 1000,
+      httpOnly: true,
+      secure: false,
+      maxAge: 5 * 60 * 1000,
     });
 
     // Send code on email
-    sendCode(userWithoutPassword.email, code).catch((err) =>
+    sendCode(user.email, code).catch((err) =>
       console.error("Email send error:", err),
     );
 
-    res.sendStatus(201);
+    res.status(201).json({
+      message: "Код підтвердження надіслано на вашу електронну пошту.",
+    });
   } catch (error) {
     console.error("Registration error: ", error);
+    if (error.code === 11000)
+      return next(
+        createError(400, "Користувач з таким email вже зареєстрований."),
+      );
     next(error);
+  } finally {
+    session.endSession();
   }
 };

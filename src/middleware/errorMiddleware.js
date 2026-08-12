@@ -12,3 +12,9 @@ export const errorMiddleware = (err, req, res, next) => {
     error: err.data || null,
   });
 };
+
+export const createError = (status, message) => {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+};

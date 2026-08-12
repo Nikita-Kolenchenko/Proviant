@@ -2,23 +2,18 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import User from "../../models/User.js";
 import Refresh from "../../models/Refresh.js";
+import { createError } from "../../middleware/errorMiddleware.js";
 
 export const refresh = async (req, res, next) => {
   try {
-    const userId = req.user.id;
+    const user = req.foundUser;
     const { refreshToken } = req.cookies;
 
-    // Find user by ID
-    const user = await User.findById(userId);
-    if (!user) {
-      const error = new Error("Помилка.");
-      error.status = 400;
-
-      return next(error);
-    }
-
     // Find refresh token in the database
-    const refreshFromDB = await Refresh.findOne({ userId, refreshToken });
+    const refreshFromDB = await Refresh.findOne({
+      userId: user._id,
+      refreshToken,
+    });
     if (!refreshFromDB) {
       const error = new Error("Помилка.");
       error.status = 400;
@@ -65,7 +60,7 @@ export const refresh = async (req, res, next) => {
 
     // Update refresh token in the database
     const updatedToken = await Refresh.findOneAndUpdate(
-      { userId, refreshToken },
+      { userId: user._id, refreshToken },
       { refreshToken: newRefreshToken },
       { returnDocument: "after", runValidators: true },
     );

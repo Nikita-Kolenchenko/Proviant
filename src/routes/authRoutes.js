@@ -4,6 +4,10 @@ import { login } from "../controllers/authControllers/loginController.js";
 import { refresh } from "../controllers/authControllers/refreshController.js";
 import { verify } from "../controllers/authControllers/verificationController.js";
 import {
+  checkUserExists,
+  checkPendingExists,
+} from "../middleware/checkUserExists.js";
+import {
   registrationLimiter,
   loginLimiter,
   verificationCodeLimiter,
@@ -18,17 +22,19 @@ import { authenticateToken } from "../middleware/authMiddleware.js";
 const router = express.Router();
 
 router.post("/register", registrationLimiter, validateRegistration, register);
-router.post("/login", loginLimiter, validateLogin, login);
 router.post(
   "/verify",
   verificationCodeLimiter,
   authenticateToken("registrationToken"),
+  checkPendingExists("REGISTRATION"),
   verify,
 );
+router.post("/login", loginLimiter, validateLogin, login);
 router.post(
   "/refresh",
   refreshLimiter,
   authenticateToken("refreshToken"),
+  checkUserExists,
   refresh,
 );
 

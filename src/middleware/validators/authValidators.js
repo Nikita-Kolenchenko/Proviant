@@ -15,15 +15,18 @@ const validateResult = (req, res, next) => {
 // Registration validation
 export const validateRegistration = [
   body("username")
+    .trim()
     .notEmpty()
     .withMessage("Вкажіть ім'я користувача.")
     .isLength({ min: 4 })
     .withMessage("Ім'я користувача повинно містити щонайменше 4 символи."),
   body("email")
+    .trim()
     .notEmpty()
     .withMessage("Вкажіть email.")
     .isEmail()
-    .withMessage("Вкажіть коректний email."),
+    .withMessage("Вкажіть коректний email.")
+    .toLowerCase(),
   body("password")
     .notEmpty()
     .withMessage("Вкажіть пароль.")
@@ -35,10 +38,12 @@ export const validateRegistration = [
 // Login validation
 export const validateLogin = [
   body("email")
+    .trim()
     .notEmpty()
     .withMessage("Вкажіть email.")
     .isEmail()
-    .withMessage("Вкажіть коректний email."),
+    .withMessage("Вкажіть коректний email.")
+    .toLowerCase(),
   body("password").notEmpty().withMessage("Вкажіть пароль."),
   validateResult,
 ];

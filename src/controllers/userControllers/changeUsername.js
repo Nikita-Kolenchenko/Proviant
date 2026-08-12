@@ -1,35 +1,24 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import User from "../../models/User.js";
+import { createError } from "../../middleware/errorMiddleware.js";
 import { sendMessage } from "../../services/email/service.js";
 
 export const changeUsername = async (req, res, next) => {
   try {
     const { newUsername, password } = req.body;
     const userId = req.user.id;
+    const user = req.foundUser;
 
     // Find user by ID
-    const user = await User.findById(userId);
-    if (!user) {
-      const error = new Error("Помилка.");
-      error.status = 400;
-
-      return next(error);
-    }
     if (user.username === newUsername) {
-      const error = new Error("Нове ім'я збігається зі старим.");
-      error.status = 400;
-
-      return next(error);
+      return next(createError(400, "Нове ім'я збігається зі старим."));
     }
 
     // Check password
     const checkPassword = await bcrypt.compare(password, user.password);
     if (!checkPassword) {
-      const error = new Error("Невірний пароль.");
-      error.status = 400;
-
-      return next(error);
+      return next(createError(400, "Невірний пароль."));
     }
 
     // Update username
