@@ -47,17 +47,17 @@ export const login = async (req, res, next) => {
 
     // If the user has fore or more refresh tokens in the db, delete the oldest token
     const getRefreshTokens = await Refresh.countDocuments({
-      userId: userWithoutPassword._id,
+      userId: user._id,
     });
     if (getRefreshTokens >= 4) {
-      await Refresh.findOneAndDelete({ userId: userWithoutPassword._id }).sort({
+      await Refresh.findOneAndDelete({ userId: user._id }).sort({
         createdAt: 1,
       });
     }
 
     // Add a new refresh token
     const newToken = await Refresh.create({
-      userId: userWithoutPassword._id,
+      userId: user._id,
       refreshToken,
     });
 
@@ -66,7 +66,7 @@ export const login = async (req, res, next) => {
       (err) => console.error("Email send error:", err),
     );
 
-    res.sendStatus(204);
+    res.status(200).json({ message: `Вітаємо  ${user.username}!` });
   } catch (error) {
     console.error("Login error: ", error);
     next(error);

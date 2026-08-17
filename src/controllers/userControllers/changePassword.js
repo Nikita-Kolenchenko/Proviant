@@ -9,7 +9,7 @@ import { sendMessage, sendCode } from "../../services/email/service.js";
 
 export const changePassword = async (req, res, next) => {
   // Start session
-  const session = mongoose.startSession();
+  const session = await mongoose.startSession();
 
   try {
     const { oldPassword, newPassword } = req.body;
@@ -22,12 +22,18 @@ export const changePassword = async (req, res, next) => {
       );
     }
 
+    // Refresh token
+    const refreshToken = req.cookies.refreshToken;
+
+    // Hash password
+    const hashPassword = await bcrypt.hash(newPassword, 10);
+
     // Check password
     if (!(await bcrypt.compare(oldPassword, user.password))) {
       return next(createError(400, "Невірний пароль."));
     }
 
-    await await session.withTransaction(async () => {
+    await session.withTransaction(async () => {
       // Delete all refresh tokens from db except for the password
       await RefreshToken.deleteMany(
         {
@@ -38,11 +44,9 @@ export const changePassword = async (req, res, next) => {
       );
 
       // Update password
-      await User.findByIdAndUpdate(
-        userId,
-        {
-          password: await bcrypt.hash(newPassword, 10),
-        },
+      await User.findOneAndUpdate(
+        { _id: user._id },
+        { password: hashPassword },
         { session },
       );
     });
@@ -56,16 +60,19 @@ export const changePassword = async (req, res, next) => {
   } catch (error) {
     next(error);
   } finally {
-    await session.endSession();
+    session.endSession();
   }
 };
 
 export const changeForgotPassword = async (req, res, next) => {
+  // Start session
+  const session = await mongoose.startSession();
+
   try {
     const { email, newPassword } = req.body;
 
     // Find user by EMAIL
-    const user = await User.findOne({ email }).select("-password");
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(200).json({
         message:
@@ -76,15 +83,31 @@ export const changeForgotPassword = async (req, res, next) => {
     // Generate a 6-digit code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Create a new pending change for email change
-    const newPendingChange = await PendingChange.create({
-      userId: user._id,
-      type: "PASSWORD_RESET",
-      payload: await bcrypt.hash(newPassword, 10),
-      code: await bcrypt.hash(code, 10),
+    await session.withTransaction(async () => {
+      // Delete panding changes
+      await PendingChange.deleteMany(
+        {
+          userId: user._id,
+          type: "PASSWORD_RESET",
+        },
+        { session },
+      );
+
+      // Create a new pending change
+      await PendingChange.create(
+        [
+          {
+            userId: user._id,
+            type: "PASSWORD_RESET",
+            payload: await bcrypt.hash(newPassword, 10),
+            code: await bcrypt.hash(code, 10),
+          },
+        ],
+        { session },
+      );
     });
 
-    // Create JWT token and set cookie
+    // Create JWT token
     const ChangeForgotPasswordToken = jwt.sign(
       {
         id: user._id,
@@ -92,6 +115,7 @@ export const changeForgotPassword = async (req, res, next) => {
       process.env.JWT_CHANGE_FORGOT_PASSWORD,
       { expiresIn: "5m" },
     );
+    // Push cookie
     res.cookie("changeForgotPasswordToken", ChangeForgotPasswordToken, {
       httpOnly: true,
       secure: false,
@@ -109,6 +133,8 @@ export const changeForgotPassword = async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  } finally {
+    session.endSession();
   }
 };
 
@@ -159,6 +185,6 @@ export const changeVerificationNewPassword = async (req, res, next) => {
   } catch (error) {
     next(error);
   } finally {
-    await session.endSession();
+    session.endSession();
   }
 };

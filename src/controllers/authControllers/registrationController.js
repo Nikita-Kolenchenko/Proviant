@@ -23,6 +23,7 @@ export const register = async (req, res, next) => {
         { email, isActivated: false },
         { session },
       );
+      // Delete panding changes
       if (userFindPandingChange) {
         await PendingChange.deleteMany(
           { userId: userFindPandingChange._id, type: "REGISTRATION" },
@@ -80,7 +81,7 @@ export const register = async (req, res, next) => {
     });
 
     // Send code on email
-    sendCode(user.email, code).catch((err) =>
+    await sendCode(user.email, code).catch((err) =>
       console.error("Email send error:", err),
     );
 

@@ -2,17 +2,12 @@ import Categories from "#models/Categories.js";
 import Product from "#models/Products.js";
 import logger from "#services/logger/logger.js";
 import { matchedData } from "express-validator";
+import { createError } from "../../middleware/errorMiddleware.js";
 
-// -- oneProducts
+// oneProducts
 export const oneProducts = async (req, res, next) => {
   try {
     const { slug } = req.params;
-    if (!slug) {
-      const error = new Error("Помилка.");
-      error.status = 400;
-
-      return next(error);
-    }
 
     // Find product by slug
     const slugProduct = await Product.findOne({ slug: slug });
@@ -30,7 +25,7 @@ export const oneProducts = async (req, res, next) => {
   }
 };
 
-// -- allProducts
+// allProducts
 export const allProducts = async (req, res, next) => {
   try {
     const Products = await Product.find();
@@ -47,59 +42,24 @@ export const allProducts = async (req, res, next) => {
   }
 };
 
-// -- createProducts
+// createProducts
 export const createProducts = async (req, res, next) => {
   try {
-    const {
-      name,
-      price,
-      purchasePrice,
-      stockQuantity,
-      sku,
-      slug,
-      description,
-      imageUrl,
-      categorySlug,
-      status,
-    } = req.body;
-
-    // Check status
-    const statusBoolean = status ? "inactive" : "active";
-    const { admin } = req;
-
-    // Check if category exists
-    const categoryExists = await Categories.findOne({ slug: categorySlug });
-    if (!categoryExists || categoryExists.status === "deleted") {
-      const error = new Error(
-        "Такої категорії не існує, або вона була видалена.",
-      );
-      error.status = 400;
-
-      return next(error);
-    }
+    const product = matchedData(req);
 
     // Create new product
     const createProduct = await Product.create({
-      name,
-      price,
-      purchasePrice,
-      stockQuantity,
-      sku,
-      slug,
-      description,
-      imageUrl,
-      categorySlug,
-      status: statusBoolean,
+      ...product,
+      imageUrl: req.file.path,
     });
 
     // Log the action
     logger.info(
-      `Подія: СТВОРЕННЯ_ТОВАРА\nАдміністратор: ${admin.username} (ID: ${admin.id})\nТовар: ${createProduct.slug} (ID: ${createProduct.id})`,
+      `Подія: СТВОРЕННЯ_ТОВАРА\nАдміністратор: ${req.admin.username} (ID: ${req.admin.id})\nТовар: ${createProduct.slug} (ID: ${createProduct.id})`,
     );
 
-    res.sendStatus(201);
+    res.status(201).json({ message: "Успішно!" });
   } catch (error) {
-    // Handle duplicate key error (e.g., unique fields)
     if (error.code === 11000) {
       const customError = new Error(`Значення для поля вже існує.`);
       customError.status = 409;
@@ -112,68 +72,55 @@ export const createProducts = async (req, res, next) => {
   }
 };
 
-// -- updateProducts
+// updateProducts
 export const updateProducts = async (req, res, next) => {
   try {
     const updates = matchedData(req);
-    if (Object.keys(updates).length === 0) {
-      const error = new Error("Вкажіть дані для оновлення.");
-      error.status = 400;
-      return next(error);
-    }
+    if (Object.keys(updates).length === 0)
+      return next(createError(400, "Вкажіть дані для оновлення."));
 
-    const productSlug = req.params.slug;
-    const { admin } = req;
+    // Find product
+    const currentProduct = await Product.findOne({ slug: req.params.slug });
+    if (!currentProduct) return next(createError(404, "Продукт не знайдено.")); // Check product
 
-    const currentProduct = await Product.findOne({ slug: productSlug });
-    if (!currentProduct) {
-      const error = new Error("Продукт не знайдено.");
-      error.status = 404;
-      return next(error);
-    }
-
-    const hasChanges = Object.keys(updates).some((key) => {
-      return String(currentProduct[key]) !== String(updates[key]);
+    // Сhecking for identical elements
+    const duplicateFields = Object.keys(updates).filter((key) => {
+      return String(currentProduct[key]) === String(updates[key]);
     });
-
-    if (!hasChanges) {
-      const error = new Error(
-        "Надіслані дані збігаються з поточними. Оновлення не потрібне.",
+    if (duplicateFields.length !== 0) {
+      return next(
+        createError(
+          400,
+          "Надіслані дані збігаються з поточними.",
+          duplicateFields,
+        ),
       );
-      error.status = 400;
-      return next(error);
     }
 
     await Product.findOneAndUpdate(
-      { slug: productSlug },
+      { _id: currentProduct._id },
       { $set: updates },
       { returnDocument: "after", runValidators: true },
     );
 
     // Log the action
     logger.info(
-      `Подія: ОНОВЛЕННЯ_ТОВАРА\nАдміністратор: ${admin.username} (ID: ${admin.id})\nТовар: ${currentProduct.slug} (ID: ${currentProduct.id})`,
+      `Подія: ОНОВЛЕННЯ_ТОВАРА\nАдміністратор: ${req.admin.username} (ID: ${req.admin.id})\nТовар: ${currentProduct.slug} (ID: ${currentProduct.id})`,
     );
 
-    res.sendStatus(204);
+    res.status(200).json({ message: "Зміни збережено." });
   } catch (error) {
-    console.error(error);
+    console.error("Update product: " + error);
     next(error);
   }
 };
 
-// -- deleteProducts
+// deleteProducts
 export const deleteProducts = async (req, res, next) => {
   try {
     const { slug } = req.params;
-    if (!slug) {
-      const error = new Error("Помилка.");
-      error.status = 400;
 
-      return next(error);
-    }
-    const { admin } = req;
-
+    // Change product
     const deletedProduct = await Product.findOneAndUpdate(
       { slug, status: { $ne: "deleted" } },
       {
@@ -184,61 +131,51 @@ export const deleteProducts = async (req, res, next) => {
       },
       { returnDocument: "after", runValidators: true },
     );
-    if (!deletedProduct) {
-      const error = new Error("Продукт не знайдено.");
-      error.status = 404;
-
-      return next(error);
-    }
+    if (!deletedProduct) return next(createError(400, "Продукт не знайдено."));
 
     // Log the action
     logger.info(
-      `Подія: ВИДАЛЕННЯ_ТОВАРА\nАдміністратор: ${admin.username} (ID: ${admin.id})\nТовар: ${deletedProduct.slug} (ID: ${deletedProduct.id})`,
+      `Подія: ВИДАЛЕННЯ_ТОВАРА\nАдміністратор: ${req.admin.username} (ID: ${req.admin.id})\nТовар: ${deletedProduct.slug} (ID: ${deletedProduct.id})`,
     );
 
-    res.sendStatus(204);
+    res.status(200).json({
+      message: `Товар ${deleteProduct.slug} видалено`,
+      clue: "його можна відновити протягом двох тижнів.",
+    });
   } catch (error) {
-    console.error(error);
+    console.error("Delete product: " + error);
     next(error);
   }
 };
 
-// -- restoreProducts
+// restoreProducts
 export const restoreProducts = async (req, res, next) => {
   try {
-    const { status } = req.body;
-    if (typeof status !== "boolean") {
-      const error = new Error("Помилка.");
-      error.status = 400;
-      return next(error);
-    }
-
-    const statusString = status ? "active" : "inactive";
-    const { admin } = req;
-
     const { slug } = req.params;
+    const { status } = req.body;
+
+    // Change product
     const restoredProduct = await Product.findOneAndUpdate(
       { slug, status: "deleted" },
-      { $set: { deleteTimes: null, status: statusString } },
+      { $set: { deleteTimes: null, status: status ? "active" : "inactive" } },
       { returnDocument: "after", runValidators: true },
     );
-
     if (!restoredProduct) {
-      const error = new Error(
-        "Продукту не існує, або його не можна відновити.",
+      return next(
+        createError(400, "Продукту не існує, або його не можна відновити."),
       );
-      error.status = 400;
-      return next(error);
     }
 
     // Log the action
     logger.info(
-      `Подія: ВІДНОВЛЕННЯ_ТОВАРА\nАдміністратор: ${admin.username} (ID: ${admin.id})\nТовар: ${restoredProduct.slug} (ID: ${restoredProduct.id})`,
+      `Подія: ВІДНОВЛЕННЯ_ТОВАРА\nАдміністратор: ${req.admin.username} (ID: ${req.admin.id})\nТовар: ${restoredProduct.slug} (ID: ${restoredProduct.id})`,
     );
 
-    res.sendStatus(204);
+    res
+      .status(200)
+      .json({ message: `Товар ${restoreProduct.slug} відновлено.` });
   } catch (error) {
-    console.error(error);
+    console.error("Restore product: " + error);
     next(error);
   }
 };

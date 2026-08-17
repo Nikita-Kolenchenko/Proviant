@@ -1,4 +1,6 @@
 import { body, validationResult } from "express-validator";
+import Categories from "#models/Categories.js";
+import Product from "#models/Products.js";
 
 const validateResult = (req, res, next) => {
   const errors = validationResult(req);
@@ -32,7 +34,6 @@ export const validateCategory = [
   validateResult,
 ];
 
-// Category update validation
 export const updateCategoryValidation = [
   body("name")
     .optional()
@@ -45,6 +46,28 @@ export const updateCategoryValidation = [
     .trim()
     .isLength({ max: 30 })
     .withMessage("Slug не повинен перевищувати 30 символів"),
+  body("status")
+    .optional()
+    .isIn(["active", "inactive"])
+    .withMessage("Статус може бути лише 'active' або 'inactive'."),
+  validateResult,
+];
+
+export const deleteCategoryValidation = [
+  body("deleteProducts")
+    .notEmpty()
+    .withMessage("Вкажіть статус продуктів.")
+    .isBoolean()
+    .withMessage("Статус повинен бути логічного типу (true або false)."),
+  validateResult,
+];
+
+export const restoreCategoryValidation = [
+  body("status")
+    .notEmpty()
+    .withMessage("Вкажіть статус продукту.")
+    .isBoolean()
+    .withMessage("Статус повинен бути логічного типу (true або false)."),
   validateResult,
 ];
 
@@ -58,22 +81,24 @@ export const validateProduct = [
   body("stockQuantity")
     .isInt({ min: 0 })
     .withMessage("Кількість на складі повинна бути цілим числом."),
-  body("sku").notEmpty().withMessage("Вкажіть SKU продукту."),
+  body("sku")
+    .notEmpty()
+    .withMessage("Вкажіть SKU продукту.")
+    .matches(/^SKU-[A-Za-z0-9]{3}-[A-Za-z0-9]{3}-[A-Za-z0-9]{3}$/)
+    .withMessage("SKU повинен бути у форматі XXX-XXX-XXX-XXX."),
   body("slug").notEmpty().withMessage("Вкажіть slug продукту."),
   body("description").notEmpty().withMessage("Вкажіть опис продукту."),
-  body("imageUrl").notEmpty().withMessage("Вкажіть URL зображення продукту."),
   body("categorySlug")
     .notEmpty()
     .withMessage("Вкажіть slug категорії продукту."),
   body("status")
     .notEmpty()
-    .withMessage("Вкажіть статус продукту.")
-    .isBoolean()
-    .withMessage("Статус повинен бути логічного типу (true або false)."),
+    .withMessage("Вкажіть stats.")
+    .isIn(["active", "inactive"])
+    .withMessage("Статус може бути лише 'active' або 'inactive'."),
   validateResult,
 ];
 
-// Product update validation
 export const updateProductValidation = [
   body("name")
     .optional()
@@ -118,6 +143,15 @@ export const updateProductValidation = [
 
   body("status")
     .optional()
+    .isIn(["active", "inactive"])
+    .withMessage("Статус може бути лише 'active' або 'inactive'."),
+  validateResult,
+];
+
+export const restoreProductValidation = [
+  body("status")
+    .notEmpty()
+    .withMessage("Вкажіть статус продукту.")
     .isBoolean()
     .withMessage("Статус повинен бути логічного типу (true або false)."),
   validateResult,

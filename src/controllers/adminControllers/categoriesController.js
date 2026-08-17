@@ -2,19 +2,14 @@ import Categories from "#models/Categories.js";
 import Product from "#models/Products.js";
 import logger from "#services/logger/logger.js";
 import { matchedData } from "express-validator";
+import { createError } from "../../middleware/errorMiddleware.js";
 
-// -- oneCategories
+// oneCategories
 export const oneCategories = async (req, res, next) => {
   try {
-    const { slug } = req.params;
-    // Check if there are products associated with the category
-    const product = await Categories.findOne({ slug });
-    if (!product) {
-      const error = new Error("Категорію не знайдено.");
-      error.status = 404;
-
-      return next(error);
-    }
+    // Find categories
+    const product = await Categories.findOne({ slug: req.params });
+    if (!product) return next(createError(404, "Категорію не знайдено."));
 
     res.status(200).send({ data: product });
   } catch (error) {
@@ -22,13 +17,11 @@ export const oneCategories = async (req, res, next) => {
   }
 };
 
-// -- allCategories
+// allCategories
 export const allCategories = async (req, res, next) => {
   try {
     const categories = await Categories.find();
-    if (categories.length === 0) {
-      return res.status(200).json({ data: [] });
-    }
+    if (categories.length === 0) return res.status(200).json({ data: [] });
 
     res.status(200).send({
       data: categories.map((c) => ({ slug: c.slug, status: c.status })),
@@ -38,19 +31,17 @@ export const allCategories = async (req, res, next) => {
   }
 };
 
-// -- createCategories
+// createCategories
 export const createCategories = async (req, res, next) => {
   try {
     const { name, slug, status } = req.body;
     const { admin } = req;
 
-    const statusBoolean = status ? "inactive" : "active";
-
     // Create a new category
     const createCategory = await Categories.create({
       name,
       slug,
-      status: statusBoolean,
+      status: status ? "inactive" : "active",
     });
 
     // Log the action
@@ -71,74 +62,56 @@ export const createCategories = async (req, res, next) => {
   }
 };
 
-// -- updateCategories
+// updateCategories
 export const updateCategories = async (req, res, next) => {
   try {
     const updates = matchedData(req);
-    if (Object.keys(updates).length === 0) {
-      const error = new Error("Вкажіть дані для оновлення.");
-      error.status = 400;
-      return next(error);
-    }
-    const { admin } = req;
+    if (Object.keys(updates).length === 0)
+      return next(createError(400, "Вкажіть дані для оновлення."));
 
-    const categorySlug = req.params.slug;
-    const currentCategory = await Categories.findOne({ slug: categorySlug });
+    // Find categoties
+    const currentCategory = await Categories.findOne({ slug: req.params.slug });
+    if (!currentCategory)
+      return next(createError(404, "Категорію не знайдено.")); // Check category
 
-    if (!currentCategory) {
-      const error = new Error("Категорію не знайдено.");
-      error.status = 404;
-      return next(error);
-    }
-
+    // Сhecking for identical elements
     const duplicateFields = Object.keys(updates).filter((key) => {
       return String(currentCategory[key]) === String(updates[key]);
     });
-
-    if (duplicateFields.length === Object.keys(updates).length) {
-      const fieldsList = duplicateFields.join(", ");
-      const error = new Error(
-        `Надіслані дані збігаються з поточними. Оновлення не потрібне.`,
+    if (duplicateFields.length !== 0) {
+      return next(
+        createError(
+          400,
+          "Надіслані дані збігаються з поточними.",
+          duplicateFields,
+        ),
       );
-      error.data = duplicateFields;
-      error.status = 400;
-      return next(error);
     }
 
+    // Update categories
     const updateData = await Categories.findOneAndUpdate(
-      { slug: categorySlug },
+      { _id: currentCategory._id },
       { $set: updates },
       { returnDocument: "after", runValidators: true },
     );
-    if (!updateData) {
-      const error = new Error("Категорію не знайдено.");
-      error.status = 404;
-      return next(error);
-    }
 
     // Log the action
     logger.info(
-      `Подія: ОНОВЛЕННЯ_КАТЕГОРІЇ\nАдміністратор: ${admin.username} (ID: ${admin.id})\nКатегорія: ${updateData.slug} (ID: ${updateData.id})`,
+      `Подія: ОНОВЛЕННЯ_КАТЕГОРІЇ\nАдміністратор: ${req.admin.username} (ID: ${req.admin.id})\nКатегорія: ${updateData.slug} (ID: ${updateData.id})`,
     );
 
-    res.sendStatus(204);
+    res.status(200).json({ message: "Зміни збережено." });
   } catch (error) {
-    console.error(error);
+    console.error("Update category: " + error);
     next(error);
   }
 };
 
-// -- deleteCategories
+// deleteCategories
 export const deleteCategories = async (req, res, next) => {
   try {
-    const { deleteProducts } = req.body;
-    if (typeof deleteProducts !== "boolean") {
-      const error = new Error("Помилка.");
-      error.status = 400;
-      return next(error);
-    }
     const categorySlug = req.params.slug;
-    const { admin } = req;
+    const { deleteProducts } = req.body;
 
     // Delete category
     const deletedCategory = await Categories.findOneAndUpdate(
@@ -172,7 +145,7 @@ export const deleteCategories = async (req, res, next) => {
       );
       // Log the action
       logger.info(
-        `Подія: ВИДАЛЕННЯ_КАТЕГОРІЇ(з видаленням продуктів)\nАдміністратор: ${admin.username} (ID: ${admin.id})\nКатегорія: ${deletedCategory.slug} (ID: ${deletedCategory.id})`,
+        `Подія: ВИДАЛЕННЯ_КАТЕГОРІЇ(з видаленням продуктів)\nАдміністратор: ${req.dmin.username} (ID: ${req.admin.id})\nКатегорія: ${deletedCategory.slug} (ID: ${deletedCategory.id})`,
       );
     } else {
       await Product.updateMany(
@@ -183,53 +156,49 @@ export const deleteCategories = async (req, res, next) => {
       );
       // Log the action
       logger.info(
-        `Подія: ВИДАЛЕННЯ_КАТЕГОРІЇ(без видалення продуктів)\nАдміністратор: ${admin.username} (ID: ${admin.id})\nКатегорія: ${deletedCategory.slug} (ID: ${deletedCategory.id})`,
+        `Подія: ВИДАЛЕННЯ_КАТЕГОРІЇ(без видалення продуктів)\nАдміністратор: ${req.admin.username} (ID: ${req.admin.id})\nКатегорія: ${deletedCategory.slug} (ID: ${deletedCategory.id})`,
       );
     }
 
-    res.sendStatus(204);
+    res.status(200).json({
+      message: `Категорію ${deletedCategory.slug} видалено`,
+      clue: "її можна відновити протягом двох тижнів.",
+    });
   } catch (error) {
-    console.error(error);
+    console.error("Delete category" + error);
     next(error);
   }
 };
 
-// -- restoreCategories
+// restoreCategories
 export const restoreCategories = async (req, res, next) => {
   try {
     const { status } = req.body;
-    if (typeof status !== "boolean") {
-      const error = new Error("Помилка.");
-      error.status = 400;
-      return next(error);
-    }
-
-    // Determine the status string based on the boolean value
-    const statusString = status ? "active" : "inactive";
     const { slug } = req.params;
-    const { admin } = req;
 
     // Restore the category
     const restoredCategory = await Categories.findOneAndUpdate(
       { slug, status: "deleted" },
-      { $set: { deleteTimes: null, status: statusString } },
+      { $set: { deleteTimes: null, status: status ? "active" : "inactive" } },
       { returnDocument: "after", runValidators: true },
     );
 
     if (!restoredCategory) {
-      const error = new Error("Категорії не існує, або її не можна відновити.");
-      error.status = 400;
-      return next(error);
+      return next(
+        createError(400, "Категорії не існує, або її не можна відновити."),
+      );
     }
 
     // Log the action
     logger.info(
-      `Подія: ВІДНОВЛЕННЯ_КАТЕГОРІЇ(без видалення продуктів)\nАдміністратор: ${admin.username} (ID: ${admin.id})\nКатегорія: ${restoredCategory.slug} (ID: ${restoredCategory.id})`,
+      `Подія: ВІДНОВЛЕННЯ_КАТЕГОРІЇ(без видалення продуктів)\nАдміністратор: ${req.admin.username} (ID: ${req.admin.id})\nКатегорія: ${restoredCategory.slug} (ID: ${restoredCategory.id})`,
     );
 
-    res.sendStatus(204);
+    res
+      .status(200)
+      .json({ message: `Категорію ${restoredCategory.slug} відновлено.` });
   } catch (error) {
-    console.error(error);
+    console.error("Restore castegory" + error);
     next(error);
   }
 };

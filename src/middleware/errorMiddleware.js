@@ -13,8 +13,11 @@ export const errorMiddleware = (err, req, res, next) => {
   });
 };
 
-export const createError = (status, message) => {
+export const createError = (status, message, data) => {
   const error = new Error(message);
   error.status = status;
+  if (data !== undefined) {
+    error.data = data;
+  }
   return error;
 };

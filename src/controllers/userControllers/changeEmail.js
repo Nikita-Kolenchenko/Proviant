@@ -17,16 +17,12 @@ export const changeEmail = async (req, res, next) => {
 
     // Check password
     const checkPassword = await bcrypt.compare(password, user.password);
-    if (!checkPassword) {
-      const error = new Error("Невірний пароль.");
-      error.status = 400;
-
-      return next(createError(400, "Невірний пароль."));
-    }
+    if (!checkPassword) return next(createError(400, "Невірний пароль."));
 
     // Generate a 6-digit code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
+    // Transaction
     await session.withTransaction(async () => {
       // Check pending change
       await PendingChange.deleteMany(
@@ -37,7 +33,7 @@ export const changeEmail = async (req, res, next) => {
         { session },
       );
 
-      // Create a new pending change for email change
+      // Create a new pending change
       await PendingChange.create(
         [
           {
@@ -57,7 +53,7 @@ export const changeEmail = async (req, res, next) => {
     );
 
     res
-      .status(204)
+      .status(200)
       .json({ message: "Код для зміни електронної пошти надіслано." });
   } catch (error) {
     next(error);
@@ -76,16 +72,21 @@ export const verifyChangeEmail = async (req, res, next) => {
     const user = req.foundUser;
     const pendingChange = req.foundPendingChange;
 
+    if (!(await bcrypt.compare(code, pendingChange.code)))
+      return next(createError(400, "Невірний код."));
+
+    // Transaction
     await session.withTransaction(async () => {
-      // Delete all refresh tokens for the db and create a new one
+      // Delete all refresh tokens for the db
       await RefreshToken.deleteMany({
         userId: user._id,
         refreshToken: { $ne: refreshToken },
       });
 
-      // Update email and delete pending change
+      // Delete pending change
       await PendingChange.deleteOne({ _id: pendingChange._id });
-      await User.findByIdAndUpdate(userId, {
+      // Update email
+      await User.findByIdAndUpdate(user._id, {
         email: pendingChange.payload,
       });
     });
