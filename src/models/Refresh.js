@@ -8,9 +8,13 @@ const refreshSchema = new mongoose.Schema(
       required: true,
     },
 
-    refreshToken: { type: String },
+    jti: { type: String },
 
-    expiredAt: { type: Date, default: Date.now, expires: "30d" },
+    expiredAt: {
+      type: Date,
+      default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      expires: 0,
+    },
   },
   { timestamps: true },
 );

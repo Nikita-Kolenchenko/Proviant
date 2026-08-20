@@ -71,7 +71,7 @@ export const validateChangeEmail = [
     .withMessage("Невірний пароль."),
   body("newEmail")
     .notEmpty()
-    .withMessage("Вкажіть новий email.")
+    .withMessage("Вкажіть email.")
     .isEmail()
     .withMessage("Вкажіть коректний email."),
   validateResult,

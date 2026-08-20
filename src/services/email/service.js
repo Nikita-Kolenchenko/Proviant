@@ -3,6 +3,7 @@ import { transporter } from "./transporter.js";
 
 export const sendMessage = async (email, message) => {
   try {
+    throw error;
     // Send a message
     await transporter.sendMail({
       from: `"Proviant" <${process.env.EMAIL_USER}>`,
@@ -72,15 +73,13 @@ export const sendMessage = async (email, message) => {
     `,
     });
   } catch (error) {
-    console.error("Критична помилка при відправці листа:", error);
-    throw new Error(
-      "Сталася помилка при відправці листа. Будь ласка, спробуйте ще раз пізніше.",
-    );
+    throw new Error(error);
   }
 };
 
 export const sendCode = async (email, code) => {
   try {
+    throw error;
     // Send a message
     await transporter.sendMail({
       from: `"Proviant" <${process.env.EMAIL_USER}>`,
@@ -149,9 +148,6 @@ export const sendCode = async (email, code) => {
     `,
     });
   } catch (error) {
-    console.error("Критична помилка при відправці листа:", error);
-    throw new Error(
-      "Сталася помилка при відправці листа. Будь ласка, спробуйте ще раз пізніше.",
-    );
+    throw new Error(error);
   }
 };

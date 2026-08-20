@@ -11,6 +11,7 @@ const categoriesSchema = new mongoose.Schema(
     },
     slug: {
       type: String,
+      required: true,
       minlength: [2, "Slug має містити не менше 2 символів."],
       maxlength: [30, "Slug має містити не більше 30 символів."],
       unique: true,

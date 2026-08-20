@@ -7,9 +7,13 @@ import { createError } from "../../middleware/errorMiddleware.js";
 // oneCategories
 export const oneCategories = async (req, res, next) => {
   try {
+    const { slug } = req.params;
+
     // Find categories
     const product = await Categories.findOne({ slug: req.params });
-    if (!product) return next(createError(404, "Категорію не знайдено."));
+    if (!product) {
+      return next(createError(404, "Категорію не знайдено."));
+    }
 
     res.status(200).send({ data: product });
   } catch (error) {
@@ -21,7 +25,9 @@ export const oneCategories = async (req, res, next) => {
 export const allCategories = async (req, res, next) => {
   try {
     const categories = await Categories.find();
-    if (categories.length === 0) return res.status(200).json({ data: [] });
+    if (categories.length === 0) {
+      return res.status(200).json({ data: [] });
+    }
 
     res.status(200).send({
       data: categories.map((c) => ({ slug: c.slug, status: c.status })),
@@ -34,15 +40,11 @@ export const allCategories = async (req, res, next) => {
 // createCategories
 export const createCategories = async (req, res, next) => {
   try {
-    const { name, slug, status } = req.body;
+    const category = matchedData(req);
     const { admin } = req;
 
     // Create a new category
-    const createCategory = await Categories.create({
-      name,
-      slug,
-      status: status ? "inactive" : "active",
-    });
+    const createCategory = await Categories.create(category);
 
     // Log the action
     logger.info(
@@ -52,11 +54,9 @@ export const createCategories = async (req, res, next) => {
     res.sendStatus(201);
   } catch (error) {
     if (error.code === 11000) {
-      const customError = new Error(`Значення для поля вже існує.`);
-      customError.status = 409;
-      customError.data = { field: Object.keys(error.keyValue)[0] };
-
-      return next(customError);
+      return next(
+        createError(409, "Користувач з таким email вже зареєстрований."),
+      );
     }
     next(error);
   }
@@ -71,8 +71,9 @@ export const updateCategories = async (req, res, next) => {
 
     // Find categoties
     const currentCategory = await Categories.findOne({ slug: req.params.slug });
-    if (!currentCategory)
+    if (!currentCategory) {
       return next(createError(404, "Категорію не знайдено.")); // Check category
+    }
 
     // Сhecking for identical elements
     const duplicateFields = Object.keys(updates).filter((key) => {

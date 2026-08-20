@@ -1,7 +1,10 @@
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
+import { fileURLToPath } from "url";
 import User from "../../models/User.js";
 import Refresh from "../../models/Refresh.js";
+import logger from "#services/logger/logger.js";
 import { sendMessage } from "../../services/email/service.js";
 import { createError } from "../../middleware/errorMiddleware.js";
 
@@ -15,6 +18,17 @@ export const login = async (req, res, next) => {
       return next(createError(400, "Невірна пошта або пароль."));
     }
 
+    // Send message
+    sendMessage(user.email, "Ми зафіксували новий вхід у ваш профіль.").catch(
+      (err) =>
+        logger.error(
+          `SEND PROTECTION MESSAGE\n  File: ${fileURLToPath(import.meta.url)}\n  Email: ${req.body?.email}\n  Message: ${err.message}`,
+        ),
+    );
+
+    // Generate jti
+    const tokenJti = crypto.randomUUID();
+
     // Create JWT token
     const accessToken = jwt.sign(
       {
@@ -26,7 +40,7 @@ export const login = async (req, res, next) => {
       { expiresIn: "10m" },
     );
     const refreshToken = jwt.sign(
-      { id: user._id },
+      { id: user._id, jti: tokenJti },
       process.env.JWT_REFRESH_SECRET,
       { expiresIn: "30d" },
     );
@@ -50,25 +64,23 @@ export const login = async (req, res, next) => {
       userId: user._id,
     });
     if (getRefreshTokens >= 4) {
-      await Refresh.findOneAndDelete({ userId: user._id }).sort({
-        createdAt: 1,
-      });
+      await Refresh.findOne({ userId: user._id })
+        .sort({ createdAt: 1 })
+        .deleteOne();
     }
 
     // Add a new refresh token
     const newToken = await Refresh.create({
       userId: user._id,
-      refreshToken,
+      jti: tokenJti,
     });
-
-    // Send message
-    sendMessage(user.email, "Ми зафіксували новий вхід у ваш профіль.").catch(
-      (err) => console.error("Email send error:", err),
-    );
 
     res.status(200).json({ message: `Вітаємо  ${user.username}!` });
   } catch (error) {
-    console.error("Login error: ", error);
+    // Log the error
+    logger.error(
+      `LOGIN\n  File: ${fileURLToPath(import.meta.url)}\n  Email: ${req.body?.email}\n  Message: ${error.message}`,
+    );
     next(error);
   }
 };

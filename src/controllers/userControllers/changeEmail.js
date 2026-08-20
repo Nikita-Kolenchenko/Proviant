@@ -1,7 +1,9 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
+import { fileURLToPath } from "url";
 import User from "../../models/User.js";
+import logger from "#services/logger/logger.js";
 import RefreshToken from "../../models/Refresh.js";
 import PendingChange from "../../models/PendingChange.js";
 import { createError } from "../../middleware/errorMiddleware.js";
@@ -49,13 +51,25 @@ export const changeEmail = async (req, res, next) => {
 
     // Send code to new email
     sendCode(newEmail, code).catch((err) =>
-      console.error("Email send error:", err),
+      logger.error(
+        `SEND CODE\n  File: ${fileURLToPath(import.meta.url)}\n  Email: ${req.body?.email}\n  Message: ${err.message}`,
+      ),
     );
 
     res
       .status(200)
       .json({ message: "Код для зміни електронної пошти надіслано." });
   } catch (error) {
+    if (
+      error.message ===
+      "PendingChange validation failed: payload: Користувач з такою поштою вже існує."
+    ) {
+      return next(error);
+    }
+    // Log the error
+    logger.error(
+      `CHANGE EMAIL\n  File: ${fileURLToPath(import.meta.url)}\n  Email: current: ${req.foundUser?.email} new: ${req.body?.newEmail}\n  Message: ${error.message}`,
+    );
     next(error);
   } finally {
     await session.endSession();
@@ -95,10 +109,18 @@ export const verifyChangeEmail = async (req, res, next) => {
     sendMessage(
       user.email,
       "Ваша електронна пошта успішно змінена на " + pendingChange.payload + ".",
-    ).catch((err) => console.error("Email send error:", err));
+    ).catch((err) =>
+      logger.error(
+        `SEND PROTECTION MESSAGE\n  File: ${fileURLToPath(import.meta.url)}\n  Email: ${req.body?.email}\n  Message: ${err.message}`,
+      ),
+    );
 
     res.status(200).json({ message: "Електронну пошту успішно змінено." });
   } catch (error) {
+    // Log the error
+    logger.error(
+      `VERIFY CHANGE EMAIL\n  File: ${fileURLToPath(import.meta.url)}\n  Email: current: ${req.foundUser?.email} new: ${req.pendingChange?.payload}\n  Message: ${error.message}`,
+    );
     next(error);
   } finally {
     session.endSession();

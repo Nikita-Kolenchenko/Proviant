@@ -1,8 +1,11 @@
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
+import { fileURLToPath } from "url";
 import User from "../../models/User.js";
 import Refresh from "../../models/Refresh.js";
+import logger from "#services/logger/logger.js";
 import PendingChange from "../../models/PendingChange.js";
 import { createError } from "../../middleware/errorMiddleware.js";
 
@@ -20,9 +23,12 @@ export const verify = async (req, res, next) => {
       return next(createError(400, "Невірний код підтвердження."));
     }
 
+    // Generate jti
+    const tokenJti = crypto.randomUUID();
+
     // Create refresh token
-    let refreshToken = jwt.sign(
-      { id: user._id },
+    const refreshToken = jwt.sign(
+      { id: user._id, jti: tokenJti },
       process.env.JWT_REFRESH_SECRET,
       { expiresIn: "30d" },
     );
@@ -45,7 +51,7 @@ export const verify = async (req, res, next) => {
         [
           {
             userId: user._id,
-            refreshToken,
+            jti: tokenJti,
           },
         ],
         { session },
@@ -86,6 +92,10 @@ export const verify = async (req, res, next) => {
       .status(200)
       .json({ message: "Вітаємо, ви успішно підтвердили електронну адресу." });
   } catch (error) {
+    // Log the error
+    logger.error(
+      `VERIFICATION\n  File: ${fileURLToPath(import.meta.url)}\n  Email: ${req.foundUser?.email}\n  Message: ${error.message}`,
+    );
     console.error("Verification error: ", error);
     next(error);
   } finally {

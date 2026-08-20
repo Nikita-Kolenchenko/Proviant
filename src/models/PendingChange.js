@@ -30,10 +30,9 @@ const pendingChangeSchema = new mongoose.Schema({
             .findOne({ email: value });
 
           if (existingUser) {
-            // Створюємо помилку та задаємо status
             const error = new Error("Користувач з такою поштою вже існує.");
-            error.status = 400; // або 409
-            throw error; // Mongoose перехопить це і передасть далі в catch
+            error.status = 400;
+            throw error;
           }
         }
         return true;

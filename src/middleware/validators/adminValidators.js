@@ -28,9 +28,9 @@ export const validateCategory = [
     .withMessage("Slug не повинен перевищувати 30 символів"),
   body("status")
     .notEmpty()
-    .withMessage("Вкажіть статус категорії.")
-    .isBoolean()
-    .withMessage("Статус повинен бути логічного типу (true або false)."),
+    .withMessage("Вкажіть stats.")
+    .isIn(["active", "inactive"])
+    .withMessage("Статус може бути лише 'active' або 'inactive'."),
   validateResult,
 ];
 

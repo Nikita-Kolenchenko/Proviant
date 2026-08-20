@@ -1,7 +1,9 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import mongoose, { Error } from "mongoose";
+import { fileURLToPath } from "url";
 import User from "../../models/User.js";
+import mongoose, { Error } from "mongoose";
+import logger from "#services/logger/logger.js";
 import PendingChange from "../../models/PendingChange.js";
 import { sendCode } from "../../services/email/service.js";
 import { createError } from "../../middleware/errorMiddleware.js";
@@ -65,6 +67,13 @@ export const register = async (req, res, next) => {
       );
     });
 
+    // Send code on email
+    sendCode(user.email, code).catch((err) =>
+      logger.error(
+        `SEND CODE\n  File: ${fileURLToPath(import.meta.url)}\n  Email: ${req.body?.email}\n  Message: ${err.message}`,
+      ),
+    );
+
     // Create registration token and push in cookie
     const registrationToken = jwt.sign(
       {
@@ -80,16 +89,14 @@ export const register = async (req, res, next) => {
       maxAge: 5 * 60 * 1000,
     });
 
-    // Send code on email
-    await sendCode(user.email, code).catch((err) =>
-      console.error("Email send error:", err),
-    );
-
     res.status(201).json({
       message: "Код підтвердження надіслано на вашу електронну пошту.",
     });
   } catch (error) {
-    console.error("Registration error: ", error);
+    // Log the error
+    logger.error(
+      `REGISTRATION\n  File: ${fileURLToPath(import.meta.url)}\n  Email: ${req.body?.email}\n  Message: ${error.message}`,
+    );
     if (error.code === 11000)
       return next(
         createError(400, "Користувач з таким email вже зареєстрований."),

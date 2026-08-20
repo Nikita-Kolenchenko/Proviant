@@ -1,7 +1,9 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
+import { fileURLToPath } from "url";
 import User from "../../models/User.js";
+import logger from "#services/logger/logger.js";
 import RefreshToken from "../../models/Refresh.js";
 import PendingChange from "../../models/PendingChange.js";
 import { createError } from "../../middleware/errorMiddleware.js";
@@ -53,11 +55,17 @@ export const changePassword = async (req, res, next) => {
 
     // Send security message
     sendMessage(user.email, "Ваш пароль успішно змінено.").catch((err) =>
-      console.error("Email send error:", err),
+      logger.error(
+        `SEND PROTECTION MESSAGE\n  File: ${fileURLToPath(import.meta.url)}\n  Email: ${req.body?.email}\n  Message: ${err.message}`,
+      ),
     );
 
     res.status(200).json({ message: "Пароль успішно змінено." });
   } catch (error) {
+    // Log the error
+    logger.error(
+      `CHANGE PASSWORD\n  File: ${fileURLToPath(import.meta.url)}\n  Email: ${req.foundUser?.email}\n  Message: ${error.message}`,
+    );
     next(error);
   } finally {
     session.endSession();
@@ -124,7 +132,9 @@ export const changeForgotPassword = async (req, res, next) => {
 
     // Send code to email
     sendCode(user.email, code).catch((err) =>
-      console.error("Email send error:", err),
+      logger.error(
+        `SEND CODE\n  File: ${fileURLToPath(import.meta.url)}\n  Email: ${req.body?.email}\n  Message: ${err.message}`,
+      ),
     );
 
     res.status(200).json({
@@ -132,6 +142,10 @@ export const changeForgotPassword = async (req, res, next) => {
         "Якщо ця пошта зареєстрована, ми надіслали код для скидання пароля.",
     });
   } catch (error) {
+    // Log the error
+    logger.error(
+      `CHANGE FORGOT PASSWORD\n  File: ${fileURLToPath(import.meta.url)}\n  Email: ${req.body?.email}\n  Message: ${error.message}`,
+    );
     next(error);
   } finally {
     session.endSession();
@@ -176,13 +190,19 @@ export const changeVerificationNewPassword = async (req, res, next) => {
 
     // Send message
     sendMessage(user.email, "Ваш пароль успішно змінено.").catch((err) =>
-      console.error("Email send error:", err),
+      logger.error(
+        `SEND PROTECTION MESSAGE\n  File: ${fileURLToPath(import.meta.url)}\n  Email: ${req.foundUser?.email}\n  Message: ${err.message}`,
+      ),
     );
 
     res.status(200).json({
       message: "Пароль успішно змінено.",
     });
   } catch (error) {
+    // Log the error
+    logger.error(
+      `VERIRI CHANGE FORGOT PASSWORD\n  File: ${fileURLToPath(import.meta.url)}\n  Email: ${req.foundUser?.email}\n  Message: ${error.message}`,
+    );
     next(error);
   } finally {
     session.endSession();

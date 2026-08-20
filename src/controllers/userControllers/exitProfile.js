@@ -1,6 +1,8 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { fileURLToPath } from "url";
 import User from "../../models/User.js";
+import logger from "#services/logger/logger.js";
 import RefreshToken from "../../models/Refresh.js";
 
 export const exitProfile = async (req, res, next) => {
@@ -20,6 +22,10 @@ export const exitProfile = async (req, res, next) => {
 
     res.status(200).json({ message: "Ви вийшли з акаунту." });
   } catch (error) {
+    // Log the error
+    logger.error(
+      `EXIT PROFILE\n  File: ${fileURLToPath(import.meta.url)}\n  Email: ${req.foundUser?.email}\n  Message: ${error.message}`,
+    );
     next(error);
   }
 };

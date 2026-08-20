@@ -36,6 +36,7 @@ app.use((req, res, next) => {
 // ROUTS
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api", userRoutes);
 app.use("/api/admin", adminRoutes);
 
 // ERRORMIDDLEWARE
