@@ -1,0 +1,4 @@
+[2026-08-30 20:58:26] [ERROR]: SEND PROTECTION MESSAGE
+  File: /home/ql1tch/Projects/Proviant/src/controllers/authControllers/login.controller.js
+  Email: kolencenkonikita97@gmail.com
+  Message: ReferenceError: error is not defined

@@ -6,10 +6,11 @@ import bodyParser from "body-parser";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { connectDB } from "./config/db.js";
-import authRoutes from "./routes/authRoutes.js";
-import userRoutes from "./routes/userRoutes.js";
-import adminRoutes from "./routes/adminRoutes.js";
-import { errorMiddleware } from "./middleware/errorMiddleware.js";
+import authRoutes from "./routes/auth.routes.js";
+import userRoutes from "./routes/user.routes.js";
+import adminRoutes from "./routes/admin.routes.js";
+import productRoutes from "./routes/product.routes.js";
+import { errorMiddleware } from "./middleware/error.middleware.js";
 
 dotenv.config();
 
@@ -36,7 +37,7 @@ app.use((req, res, next) => {
 // ROUTS
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
-app.use("/api", userRoutes);
+app.use("/api", productRoutes);
 app.use("/api/admin", adminRoutes);
 
 // ERRORMIDDLEWARE
